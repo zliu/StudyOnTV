@@ -1,0 +1,43 @@
+
+@import "{{ site.theme }}";
+
+/* Keep TOC clean on mobile and narrow screens */
+#markdown-toc {
+  background: #f8f9fa;
+  border: 1px solid #eff0f1;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  font-size: 0.9rem;
+  list-style: none;
+}
+
+#markdown-toc ul {
+  list-style: none;
+  padding-left: 1rem;
+  margin-top: 0.35rem;
+}
+
+#markdown-toc li {
+  margin-bottom: 0.35rem;
+}
+
+/* Pin TOC to the left side on wide desktop screens */
+@media screen and (min-width: 1280px) {
+  #markdown-toc {
+    position: fixed;
+    left: 1.5rem;
+    top: 2rem;
+    width: 230px;
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+    background: #ffffff;
+    z-index: 10;
+  }
+
+  /* Shift main content slightly right so it never touches the sidebar */
+  .main-content {
+    margin-left: calc(230px + 3rem);
+    margin-right: auto;
+  }
+}
+
