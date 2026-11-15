@@ -3,3 +3,10 @@ title: [test site]
 description: [tes tdescription]
 show_downloads: [true]
 baseurl: "/StudyOnTV"
+markdown: kramdown
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: "default"
