@@ -1,3 +1,7 @@
+---
+render_with_liquid: false
+---
+
 # 与 Home Assistant 联动
 
 「题了个题」管的是**内容层**：想看电视，先把题做了。
