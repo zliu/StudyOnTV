@@ -45,6 +45,7 @@ object DeviceRuntime {
         GuardSync.ensure(app)
         GuardSync.heal(app)
         learning = LearningEngine(store)
+        LearningNavigation.start(learning)
         server = LanServer(app, store, app.assets).also {
             it.start()
             Prefs.setLocalPort(app, it.boundPort)

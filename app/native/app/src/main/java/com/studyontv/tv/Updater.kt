@@ -4,8 +4,6 @@ import android.content.Context
 import android.os.Build
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 
 /**
  * 版本检查：只使用蒲公英应用内更新接口（appKey + 当前版本）。
@@ -13,15 +11,6 @@ import java.net.URL
  */
 object Updater {
     const val OWNER_REPO = "chadyi/StudyOnTV"
-    private const val GITHUB_API = "https://api.github.com/repos/$OWNER_REPO/releases/latest"
-    private const val MANIFEST_PATH = "$OWNER_REPO/main/update.json"
-    private val MANIFEST_URLS = listOf(
-        "https://raw.githubusercontent.com/$MANIFEST_PATH",
-        "https://cdn.jsdelivr.net/gh/$OWNER_REPO@main/update.json",
-        "https://fastly.jsdelivr.net/gh/$OWNER_REPO@main/update.json",
-        "https://gcore.jsdelivr.net/gh/$OWNER_REPO@main/update.json"
-    )
-    /** 公益 GitHub 加速镜像，随时可能失效；家长可在管理面板中修改 */
     val DEFAULT_MIRRORS = emptyList<String>()
     private const val CACHE_MS = 6L * 60 * 60 * 1000
 
@@ -43,7 +32,7 @@ object Updater {
             .map { if (it.endsWith("/")) it else "$it/" }.distinct()
     }
 
-    /** 可用的 APK 下载地址：上次成功的线路优先，其次直连，再其次各个镜像 */
+    /** 可用的 APK 下载地址 */
     fun downloadCandidates(ctx: Context, url: String): List<Pair<String, String>> =
         listOf("蒲公英" to url)
 
@@ -99,76 +88,52 @@ object Updater {
             val o = JSONObject(raw)
             Info(o.optString("latest"), o.optString("current"), o.optBoolean("force"),
                 o.optString("notes"), o.optString("url"), o.optString("sha256"), o.optString("source"))
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
 
-    private fun fetch(endpoint: String): JSONObject? {
-        val conn = URL(endpoint).openConnection() as HttpURLConnection
-        conn.connectTimeout = 5000
-        conn.readTimeout = 6000
-        conn.setRequestProperty("User-Agent", "StudyOnTV-Updater")
-        conn.setRequestProperty("Accept", "application/vnd.github+json, application/json")
-        return try {
-            val code = conn.responseCode
-            if (code !in 200..299) throw IllegalStateException(if (code == 403 || code == 429) "HTTP $code（请求太频繁或被限流）" else "HTTP $code")
-            val text = conn.inputStream.use { stream -> stream.readBytes().also { require(it.size < 2_000_000) { "响应过大" } } }
-            JSONObject(String(text, Charsets.UTF_8))
-        } finally {
-            conn.disconnect()
-        }
-    }
-
-    private val flavorMarker get() = if (BuildConfig.FLAVOR == "tv") "-TV-" else "-Mobile-"
-
-    /** 同时支持 GitHub Release JSON 和 update.json 清单 */
-    private fun parse(data: JSONObject, current: String, source: String): Info? =
-        if (data.has("tag_name")) parseRelease(data, current, source) else parseManifest(data, current, source)
-
-    private fun parseRelease(release: JSONObject, current: String, source: String): Info? {
-        val tag = release.optString("tag_name").removePrefix("v").trim()
-        if (tag.isEmpty()) return null
-        val body = release.optString("body")
-        val assets = release.optJSONArray("assets")
-        val candidates = (0 until (assets?.length() ?: 0)).map { assets!!.getJSONObject(it) }
-        val selected = candidates.firstOrNull { it.optString("name").contains(flavorMarker, true) && it.optString("name").endsWith(".apk", true) }
-            ?: if (BuildConfig.FLAVOR == "tv") candidates.firstOrNull { it.optString("name").matches(Regex("StudyOnTV-v[0-9.]+\\.apk")) } else null
-        val url = selected?.optString("browser_download_url")?.takeIf { it.isNotEmpty() } ?: return null
-        // GitHub 会给 Release 附件计算 digest（sha256:...），用于校验镜像下载的文件
-        val digest = selected.optString("digest").takeIf { it.startsWith("sha256:", true) }?.substring(7).orEmpty()
-        val force = body.contains("[force]", true) || body.contains("force update", true)
-        return Info(tag, current, force && isNewer(tag, current), body.trim(), url, digest.lowercase(), source)
-    }
-
     /**
-     * update.json 格式（由 scripts/make-update-manifest.mjs 生成）：
-     * {"version":"0.2.2","notes":"…","force":false,
-     *  "assets":{"tv":{"url":"https://github.com/…/StudyOnTV-TV-v0.2.2.apk","sha256":"…"},"mobile":{…}}}
+     * 比较远程版本是否比本地版本更新（遵循语义化版本 SemVer）：
+     * 主版本号段 `[major, minor, patch]` 与先行版后缀（如 `-beta`）分开解析，
+     * 保证正式版 `0.4.4` 比同号内测包 `0.4.4-beta` 新，而 `0.4.4-beta` 不会被判成比正式版 `0.4.4` 新。
      */
-    private fun parseManifest(manifest: JSONObject, current: String, source: String): Info? {
-        val version = manifest.optString("version").removePrefix("v").trim()
-        if (version.isEmpty()) return null
-        val asset = manifest.optJSONObject("assets")?.optJSONObject(if (BuildConfig.FLAVOR == "tv") "tv" else "mobile") ?: return null
-        val url = asset.optString("url").takeIf { it.startsWith("https://") } ?: return null
-        val notes = manifest.optString("notes")
-        val force = manifest.optBoolean("force") || notes.contains("[force]", true)
-        return Info(version, current, force && isNewer(version, current), notes.trim(), url, asset.optString("sha256").lowercase(), source)
-    }
-
     fun isNewer(latest: String, current: String): Boolean {
-        val a = latest.split(".", "-").map { it.toIntOrNull() ?: 0 }
-        val b = current.split(".", "-").map { it.toIntOrNull() ?: 0 }
-        for (i in 0 until maxOf(a.size, b.size)) {
-            val x = a.getOrElse(i) { 0 }
-            val y = b.getOrElse(i) { 0 }
+        val remoteClean = latest.trim().removePrefix("v").removePrefix("V").substringBefore('+')
+        val localClean = current.trim().removePrefix("v").removePrefix("V").substringBefore('+')
+        if (remoteClean.isEmpty()) return false
+        val remoteCore = remoteClean.substringBefore('-').split('.').map { it.toIntOrNull() ?: 0 }
+        val localCore = localClean.substringBefore('-').split('.').map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(remoteCore.size, localCore.size)) {
+            val x = remoteCore.getOrElse(i) { 0 }
+            val y = localCore.getOrElse(i) { 0 }
             if (x != y) return x > y
         }
-        return false
+        val remotePre = remoteClean.substringAfter('-', "")
+        val localPre = localClean.substringAfter('-', "")
+        if (remotePre.isEmpty() && localPre.isEmpty()) return false
+        if (remotePre.isEmpty() && localPre.isNotEmpty()) return true
+        if (remotePre.isNotEmpty() && localPre.isEmpty()) return false
+        val rParts = remotePre.split('.', '-')
+        val lParts = localPre.split('.', '-')
+        for (i in 0 until minOf(rParts.size, lParts.size)) {
+            val rp = rParts[i]
+            val lp = lParts[i]
+            if (rp == lp) continue
+            val rn = rp.toIntOrNull()
+            val ln = lp.toIntOrNull()
+            return when {
+                rn != null && ln != null -> rn > ln
+                rn != null -> false
+                ln != null -> true
+                else -> rp > lp
+            }
+        }
+        return rParts.size > lParts.size
     }
 
     fun currentVersion(ctx: Context): String =
-        try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "0.0.0" } catch (e: Exception) { "0.0.0" }
+        try { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "0.0.0" } catch (_: Exception) { "0.0.0" }
 
     fun currentVersionCode(ctx: Context): Int = try {
         val info = ctx.packageManager.getPackageInfo(ctx.packageName, 0)
@@ -185,13 +150,11 @@ object Updater {
         return JSONObject().put("current", currentVersion(ctx))
             .put("latest", info?.latest ?: "").put("hasUpdate", newerThanCurrent(ctx, info) != null)
             .put("notes", info?.notes ?: "").put("source", info?.source ?: "")
-            // 面板要给出「手动下载 / 用电脑 adb 安装」的地址，否则家长在山寨电视上装不上时无从下手
             .put("url", info?.url ?: "")
             .put("checkedAt", Prefs.updateCheckedAt(ctx)).put("checking", checking)
             .put("logAt", log.optLong("at"))
             .put("api", api(ctx)).put("mirrors", JSONArray(mirrors(ctx))).put("defaultMirrors", JSONArray(DEFAULT_MIRRORS))
             .put("lastDownloadSource", Prefs.updateLastSource(ctx))
-            // 「能下不能装」是电视上最常见的一类反馈：把系统原话和授权状态直接给面板
             .put("canInstall", ApkInstaller.canInstall(ctx))
             .put("installError", Prefs.updateInstallError(ctx))
             .put("log", log.optJSONArray("items") ?: JSONArray())

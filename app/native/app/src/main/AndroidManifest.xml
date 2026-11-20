@@ -37,6 +37,8 @@
         <intent><action android:name="android.settings.SETTINGS" /></intent>
         <!-- 不计时白名单：家长面板要列出已安装的可启动应用 -->
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent>
+        <!-- 本地语音诊断：Android 11+ 不声明就查不到任何 TTS 引擎（#128） -->
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
     </queries>
 
     <application
@@ -76,11 +78,14 @@
         <!-- 电视桌面（HomeActivity / HomeAlias）只在带桌面的包里有，见 src/desktop/AndroidManifest.xml。
              不带桌面的包声明了 HOME 会被部分电视的应用商店拒装。 -->
 
+        <!-- singleInstance 的任务里只能放一个 Activity：填空题输入页（TvTextInputActivity）
+             因此只能另起一个任务，输入页 finish 后任务归零，前台掉回桌面，小米固件随即强停本应用（#160）。
+             singleTask 仍然独占 com.studyontv.tv.gate 这个任务，但允许输入页叠在学习页之上。 -->
         <activity
             android:name=".GateActivity"
             android:configChanges="orientation|screenSize|keyboardHidden|navigation"
             android:excludeFromRecents="true"
-            android:launchMode="singleInstance"
+            android:launchMode="singleTask"
             android:screenOrientation="unspecified"
             android:taskAffinity="com.studyontv.tv.gate"
             android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />

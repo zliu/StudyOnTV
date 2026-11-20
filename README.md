@@ -12,6 +12,9 @@
 [![Platform](https://img.shields.io/badge/Android-5.0%2B-3DDC84?style=for-the-badge&logo=android)](https://github.com/chadyi/StudyOnTV)
 [![License](https://img.shields.io/badge/license-Personal%20Use%20Only-orange?style=for-the-badge)](./LICENSE)
 
+[![Trendshift: #1 Kotlin Repository of the Day](https://trendshift.io/api/badge/trendshift/repositories/338664/daily?language=Kotlin)](https://trendshift.io/repositories/338664)
+[![Trendshift: #9 Kotlin Repository of the Week](https://trendshift.io/api/badge/trendshift/repositories/338664/weekly?language=Kotlin)](https://trendshift.io/repositories/338664)
+
 </div>
 
 ---
@@ -180,7 +183,12 @@ A：题库可以在手机管理页导出 JSON，换电视后重新导入。
 
 <div align="center">
 
-<img src="./docs/wechat-group.jpg" width="240" alt="家长交流微信群二维码">
+<table>
+  <tr>
+    <td align="center"><img src="./docs/wechat-group.jpg" width="200" alt="家长交流微信群二维码"></td>
+    <td align="center"><img src="./docs/wechat-group-2.jpg" width="200" alt="家长交流微信群二维码"></td>
+  </tr>
+</table>
 
 **家长交流群** · 使用问题、设备兼容和功能建议都可以在群里聊<br>
 <sub>微信群二维码 7 天内有效，过期请在 <a href="https://github.com/chadyi/StudyOnTV/issues">Issues</a> 留言索取；也欢迎直接在 Issues 里反馈</sub>

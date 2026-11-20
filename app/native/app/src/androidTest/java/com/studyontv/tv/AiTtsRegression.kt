@@ -16,7 +16,56 @@ object AiTtsRegression {
         grading.close()
         context.deleteDatabase("ai-tts-regression.db")
         languageFallback()
+        wavParsing()
         failureNotice(context)
+        ttsProbe(context)
+    }
+
+    /**
+     * DeepSeek 朗读返回 WAV：华为等设备的 MediaPlayer 播不了（Prepare failed status=0x1），
+     * 改成自己解析 PCM 交给 AudioTrack。这里断言解析器认标准 WAV、容忍附带 chunk、拒绝非音频。
+     */
+    private fun wavParsing() {
+        fun wav(rate: Int, channels: Int, bits: Int, frames: Int, extraChunk: Boolean = false): ByteArray {
+            val dataSize = frames * channels * bits / 8
+            val out = java.io.ByteArrayOutputStream()
+            fun le32(v: Int) { out.write(v and 0xFF); out.write(v shr 8 and 0xFF); out.write(v shr 16 and 0xFF); out.write(v shr 24 and 0xFF) }
+            fun le16(v: Int) { out.write(v and 0xFF); out.write(v shr 8 and 0xFF) }
+            out.write("RIFF".toByteArray()); le32(36 + dataSize); out.write("WAVE".toByteArray())
+            if (extraChunk) { out.write("LIST".toByteArray()); le32(4); out.write(byteArrayOf(1, 2, 3, 4)) }
+            out.write("fmt ".toByteArray()); le32(16); le16(1); le16(channels); le32(rate)
+            le32(rate * channels * bits / 8); le16(channels * bits / 8); le16(bits)
+            out.write("data".toByteArray()); le32(dataSize); out.write(ByteArray(dataSize))
+            return out.toByteArray()
+        }
+
+        val mono = WavAudio.parse(wav(16000, 1, 16, 800))
+        check(mono != null) { "标准 16 位 PCM WAV 必须能解析" }
+        check(mono!!.sampleRate == 16000 && mono.channels == 1 && mono.bitsPerSample == 16)
+        check(mono.frames == 800L && mono.data.size == 1600) { "帧数 / PCM 长度要按声道和位深算对" }
+
+        val stereo = WavAudio.parse(wav(24000, 2, 16, 120, extraChunk = true))
+        check(stereo != null && stereo.channels == 2 && stereo.frames == 120L) { "带 LIST 等附加 chunk 的 WAV 也要能解析" }
+
+        check(WavAudio.parse(wav(16000, 1, 8, 100)) == null) { "非 16 位 PCM 交给 MediaPlayer，不自己播" }
+        check(WavAudio.parse(wav(16000, 1, 16, 0)) == null) { "没有音频数据时不能当成可播放" }
+        check(WavAudio.parse("{\"error\":\"insufficient balance\"}".toByteArray()) == null)
+        check(!WavAudio.isWave("{\"error\":\"x\"}".toByteArray())) { "JSON 错误体不能当成音频" }
+        check(WavAudio.isWave(wav(16000, 1, 16, 10)))
+    }
+
+    /** #128：引擎探测无论有没有引擎都要给出可读结果，按超时返回，不抛异常 */
+    private fun ttsProbe(context: Context) {
+        // probe 依赖主线程初始化 + latch，主线程上直接调用会死锁
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return
+        val engines = TtsProbe.installedEngines(context)
+        check(engines.length() >= 0)
+        val started = System.currentTimeMillis()
+        val result = TtsProbe.probe(context, "zh-Hans-CN", 1500)
+        check(System.currentTimeMillis() - started < 6000) { "探测必须按超时返回" }
+        check(result.has("ok") && result.has("langStatus")) { "探测结果结构不完整：$result" }
+        check(result.getString("hint").isNotBlank()) { "探测结果必须带可读说明" }
+        check(result.getString("language") == "zh-CN") { "探测语言标签要标准化" }
     }
 
     /** #106：Key 不回显、空白保留旧 Key、clearKey 生效、AI 模式校验与 http 限制 */
@@ -88,6 +137,12 @@ object AiTtsRegression {
         check(JSONObject(store.get("speech_settings", "{}")).getString("azureKey") == "azure-secret")
         check(SpeechReader.recognitionLanguage("zh-HK") == "zh-HK") { "粤语题目按粤语识别（#126）" }
         check(SpeechReader.recognitionLanguage("ja-JP") in SpeechReader.whitelist) { "白名单外语言必须降级到白名单内的语言" }
+        // 朗读内容：老设置没有这个字段时按「只读题目」，写入的非法值不能存进去
+        check(SpeechReader.settings(store).getString("readScope") == "question") { "没设置过朗读内容时默认只读题目" }
+        SpeechReader.save(store, JSONObject().put("mode", "system").put("readScope", "questionOptionsAnswer"))
+        check(SpeechReader.settings(store).getString("readScope") == "questionOptionsAnswer") { "朗读内容要能保存" }
+        check(runCatching { SpeechReader.save(store, JSONObject().put("mode", "system").put("readScope", "all")) }.isFailure) { "未知朗读内容要拒绝" }
+        check(SpeechReader.settings(store).getString("readScope") == "questionOptionsAnswer") { "拒绝后不能改动已保存的值" }
     }
 
     /** 语言回落：缺失 / 不支持时回落默认语言并标记降级，两种情况都失败时不抛异常 */
@@ -125,8 +180,19 @@ object AiTtsRegression {
         val broken = SpeechReader.resolveLanguage("ja-JP", "zh-CN") { throw IllegalStateException("engine gone") }
         check(broken.accepted && !broken.degraded)
 
+        // #128：带文字扩展的 BCP47 标签要标准化，否则部分引擎直接回 LANG_MISSING_DATA（有语音包也读不出来）
+        check(SpeechReader.normalizeLanguageTag("zh-Hans-CN") == "zh-CN")
+        check(SpeechReader.normalizeLanguageTag("zh-Hans") == "zh-CN")
+        check(SpeechReader.normalizeLanguageTag("zh-Hant-TW") == "zh-TW")
+        check(SpeechReader.normalizeLanguageTag("zh-Hant-HK") == "zh-HK")
+        check(SpeechReader.normalizeLanguageTag("en") == "en-US")
+        check(SpeechReader.normalizeLanguageTag("en-AU") == "en-GB")
+        check(SpeechReader.normalizeLanguageTag("ja-JP") == "ja-JP") { "其它语言保持原样" }
+        check(SpeechReader.normalizeLanguageTag("") == "zh-CN")
+
         val default = SpeechReader.defaultLanguage()
         check(default.isNotBlank()) { "设备默认语言必须可读" }
+        check(default == SpeechReader.normalizeLanguageTag(default)) { "默认语言必须已经是标准化后的标签" }
         check(SpeechReader.resolveLanguage("ja-JP") { tag -> if (tag == default) TextToSpeech.LANG_AVAILABLE else TextToSpeech.LANG_NOT_SUPPORTED }.language == default)
     }
 
@@ -142,6 +208,9 @@ object AiTtsRegression {
 
     /** 失败信息结构（桥方法 speechStatus / SOTV_SPEECH_NOTICE 都用它）+ 无引擎时不崩 */
     private fun failureNotice(context: Context) {
+        // 设备上可能留着云端朗读的设置（手工测过 DeepSeek）：语言回落这条要固定走系统引擎，
+        // 否则 xx-XX 会被送去云端合成，401 之类的原因混进来，和 #87 本身无关。
+        runCatching { SpeechReader.save(DeviceRuntime.store, JSONObject().put("mode", "system")) }
         val notice = SpeechReader.failureNotice("system", "language-unavailable", "ja-JP", "", true, "这台设备的系统语音不支持 ja-JP")
         check(!notice.getBoolean("ok"))
         check(notice.getString("reason") == "language-unavailable")

@@ -41,7 +41,9 @@ class RevivalListener : NotificationListenerService() {
         super.onCreate()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             try {
-                registerReceiver(unlocked, IntentFilter(Intent.ACTION_USER_UNLOCKED))
+                val filter = IntentFilter(Intent.ACTION_USER_UNLOCKED)
+                if (Build.VERSION.SDK_INT >= 33) registerReceiver(unlocked, filter, Context.RECEIVER_NOT_EXPORTED)
+                else registerReceiver(unlocked, filter)
                 watchingUnlock = true
             } catch (_: Exception) { }
         }
@@ -63,7 +65,15 @@ class RevivalListener : NotificationListenerService() {
     }
 
     private fun startRecovery(reason: String) {
-        if (checking) return
+        if (checking) {
+            if (reason == "user unlocked" || reason == "listener connected") {
+                handler.removeCallbacks(check)
+                attempt = 0
+                log("recovery accelerated: $reason")
+                handler.post(check)
+            }
+            return
+        }
         checking = true
         attempt = 0
         log("recovery start: $reason")

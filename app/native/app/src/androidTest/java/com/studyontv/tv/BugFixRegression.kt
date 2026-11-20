@@ -157,6 +157,8 @@ object BugFixRegression {
             check(store.config().getBoolean("allowQuizUnlock")) { "答题页密码解锁开关应能保存" }
 
             // 补算必须和正常 tick 一样真的扣掉时长（consume 单次上限 5 秒，分块后应扣满 30 秒）
+            // 先用家长加时发一点余额：余额为 0 时 consume 本来就没有可扣的
+            engine.remote("credit", 10, "test")
             val before = engine.status().getLong("remainingSeconds")
             engine.consumeRecovered(30_000)
             val after = engine.status().getLong("remainingSeconds")
@@ -308,7 +310,7 @@ object BugFixRegression {
             // 反复启动（服务被杀 / 开机自启）都不能把旧数据冲掉
             repeat(3) { attempt ->
                 LocalStore(context, name).use { migrated ->
-                    check(migrated.readableDatabase.version == 9) { "第${attempt + 1}次打开应当升级到 v9" }
+                    check(migrated.readableDatabase.version == 10) { "第${attempt + 1}次打开应当升级到 v10" }
                     check(migrated.get("active_round") == activeRound.toString()) { "升级后必须保留进行中的一轮" }
                     check(migrated.get("credit_ms") == "900000") { "升级后必须保留剩余时间" }
                     check(migrated.get("used_ms") == "600000") { "升级后必须保留已用时长" }

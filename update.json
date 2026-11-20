@@ -1,21 +1,21 @@
 {
-  "version": "0.4.0",
-  "versionCode": 42,
+  "version": "0.5.0",
+  "versionCode": 47,
   "force": false,
-  "notes": "• 修复观看时间漏计：被系统强杀的进程重启后会补算漏掉的时长，不再因固件清后台而虚增剩余额度\n• 新增「不计时应用」白名单：系统屏保、网课 App 在前台时不消耗观看配额、不弹题、不静音\n• 答题页新增家长密码解锁入口（默认关闭，在「时间计划」里打开）：家长可直接用遥控器输密码临时解锁 30 分钟\n• 出题顺序新增「没做过的题先出」；优化「错题优先」和「覆盖优先」文字说明\n• 电视端语音朗读按钮修复：自动检测设备是否支持，不支持时不显示；优化填空题输入区域排版\n• 题库管理支持分页加载，5000 条以上不再卡顿；新增按科目、年级、难度、题型快速筛选\n• 题库新增「发现」：直接在面板里浏览并一键导入共享题库\n• 崩溃日志可选上传到自建 Cloudflare Worker，不再强依赖 Bugly\n• 家长面板 UI 全面重设计：首页、学习计划、题库页布局与交互大幅改善\n• 更新页新增「用电脑安装」：生成 ADB 命令一键复制，解决电视端点更新无反应的问题\n• 新增远程管理指南（Tailscale / Lucky / frp），在外面也能管电视\n• 新增 Home Assistant 集成、n8n 工作流模板、Telegram 机器人，方便家庭自动化联动",
-  "publishedAt": "2026-11-15T14:53:00.000Z",
+  "notes": "fix(ui): 统一使用 @/lib/utils 中的 cn，修复 CI 全新安装时的类型检查",
+  "publishedAt": "2026-11-18T07:35:31.398Z",
   "assets": {
     "tv": {
-      "name": "StudyOnTV-Android-TV-v0.4.0.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.4.0/StudyOnTV-Android-TV-v0.4.0.apk",
-      "sha256": "",
-      "size": 0
+      "name": "StudyOnTV-Android-TV-v0.5.0.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.5.0/StudyOnTV-Android-TV-v0.5.0.apk",
+      "sha256": "1da00bee9207dcb16e5dc0f46037d56c10a0126e20dfd0b9aeaae4a6f9cd9a09",
+      "size": 3442678
     },
     "mobile": {
-      "name": "StudyOnTV-Mobile-v0.4.0.apk",
-      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.4.0/StudyOnTV-Mobile-v0.4.0.apk",
-      "sha256": "",
-      "size": 0
+      "name": "StudyOnTV-Mobile-v0.5.0.apk",
+      "url": "https://github.com/chadyi/StudyOnTV/releases/download/v0.5.0/StudyOnTV-Mobile-v0.5.0.apk",
+      "sha256": "12df754775a764893b680c7ecec40879ebdb8c433547ec3959842e3b9d34c6a7",
+      "size": 3445607
     }
   }
 }

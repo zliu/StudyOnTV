@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   build-check:
     name: 编译检查
@@ -22,12 +25,14 @@ jobs:
       - name: 设置 Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: parent-ui/package-lock.json
 
       - name: 设置 Gradle 缓存
         uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.14.3'
 
       - name: 安装 parent-ui 依赖
         working-directory: parent-ui
@@ -37,9 +42,9 @@ jobs:
         working-directory: parent-ui
         run: npm run build
 
-      - name: 编译 TV + Mobile Debug APK（无需签名）
+      - name: 运行单元测试并编译 TV + Mobile Debug APK（无需签名）
         working-directory: app/native
-        run: ./gradlew assembleTvDebug assembleMobileDebug --no-daemon
+        run: gradle testTvDebugUnitTest testMobileDebugUnitTest assembleTvDebug assembleMobileDebug --no-daemon
 
   ui-check:
     name: 前端类型检查
@@ -52,7 +57,7 @@ jobs:
       - name: 设置 Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: parent-ui/package-lock.json
 

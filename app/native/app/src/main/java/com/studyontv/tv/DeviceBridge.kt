@@ -87,6 +87,8 @@ open class DeviceBridge(protected val activity: Activity, private val connection
             AdminAuth.markVerified()
             val status = DeviceRuntime.learning.remote("unlock", QUIZ_UNLOCK_MINUTES, "quiz")
             Diag.info("Auth", "家长在锁定页临时解锁 $QUIZ_UNLOCK_MINUTES 分钟")
+            GateService.hideGates()
+            GateService.refreshNow()
             JSONObject().put("ok", true).put("status", status).toString()
         } catch (e: Exception) {
             Diag.warn("Auth", "quiz unlock failed: ${e.message}")
@@ -99,9 +101,15 @@ open class DeviceBridge(protected val activity: Activity, private val connection
     } catch (_: Throwable) { false }
 
     @JavascriptInterface
+    fun navigationBlocked(): Boolean {
+        LearningNavigation.notifyBlocked(activity)
+        return true
+    }
+
+    @JavascriptInterface
     fun exitToLauncher() {
         val status = DeviceRuntime.learning.status()
-        if (status.getString("reason").isNotEmpty() || (status.optLong("remainingSeconds") <= 0 && !status.optBoolean("free"))) return
+        if (!status.optBoolean("canExit")) return
         activity.runOnUiThread {
             GateService.hideGates()
             // 答题结束回到「上一个任务」，绝不能主动跳桌面，否则正在播放的视频会被顶掉（#54 / #63）。

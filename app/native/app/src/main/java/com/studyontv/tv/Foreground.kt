@@ -88,6 +88,7 @@ object Foreground {
     /** 最近一个真正的前台应用（不含系统临时窗口），供「解锁后回到原画面」使用 */
     fun lastReal(): String? = lastRealPackage?.takeUnless { it == selfPackage || (it == lastPackage && isTransient(it)) }
     fun hasResumedActivity(): Boolean = ownActivity?.get() != null
+    fun resumedActivity(): android.app.Activity? = ownActivity?.get()
     fun learningActivity(): android.app.Activity? = ownActivity?.get()?.takeIf { it is MainActivity }
 
     private val launcherPackages = setOf(
@@ -166,7 +167,7 @@ object Foreground {
             if (latest != null) {
                 usageLatest = latest
                 usageLatestClass = latestClass
-                usageLatestAt = SystemClock.elapsedRealtime() - latestAge
+                usageLatestAt = (SystemClock.elapsedRealtime() - latestAge).coerceAtLeast(1L)
             }
             val sticky = usageLatest
             if (sticky != null && !isTransient(sticky) && fresh(usageLatestAt)) return sticky
@@ -182,7 +183,8 @@ object Foreground {
             if (recent == null) return null
             usageLatest = recent.packageName
             usageLatestClass = null
-            usageLatestAt = SystemClock.elapsedRealtime() - (now - recent.lastTimeUsed).coerceAtLeast(0)
+            // 刚重启时 elapsedRealtime 很小，减去重启前的 age 会算出负数导致 fresh(at) 永远不命中缓存
+            usageLatestAt = (SystemClock.elapsedRealtime() - (now - recent.lastTimeUsed).coerceAtLeast(0)).coerceAtLeast(1L)
             return recent.packageName
         } catch (_: Exception) { null }
     }

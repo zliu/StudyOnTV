@@ -10,11 +10,13 @@
 | `GateTickState.kt` | 单次 tick 的事实快照（纯数据），弹窗 / 静音 / 角标读同一份判断 |
 | `GateOverlay.kt` / `CountdownOverlay.kt` / `GateActivity.kt` | 悬浮窗管控层、右上角剩余时间角标、全屏学习页 |
 | `LearningEngine.kt` | 答题业务：出题、计时、奖励、错题与覆盖优先 |
+| `LearningNavigation.kt` | 学习退出策略快照、遥控器导航按键过滤与不可用提示 |
 | `TimePolicy.kt` / `DeviceClock.kt` | 可用时段判断、「今天」的界线（支持家长指定时区） |
 | `WatchGap.kt` | 进程被固件清理期间漏掉的观看时长补算（心跳 + 开机时钟，不含深睡） |
 | `WatchWhitelist.kt` | 不计时应用白名单（屏保 / 网课）的校验与解析 |
-| `LocalStore.kt` | SQLite 数据访问层（题库、统计、事件、配置、多孩子） |
-| `QuestionOptions.kt` | 选项乱序与答案映射 |
+| `LocalStore.kt` | SQLite 数据访问层（题库、统计、事件、配置、多孩子、学情与整机备份） |
+| `MediaStore.kt` | 题目配图与手写作答的本地文件存储、SHA-256 去重与孤儿清理 |
+| `QuestionOptions.kt` | 选项与选项配图同步乱序及答案映射 |
 
 ## 网络与鉴权
 
@@ -53,7 +55,8 @@
 
 | 文件 | 职责 |
 |---|---|
-| `SpeechReader.kt` / `VoiceCapture.kt` | TTS 朗读、语音作答 |
+| `SpeechReader.kt` / `EdgeTts.kt` / `VoiceCapture.kt` | TTS 朗读（含内置微软 Edge 在线朗读）、语音作答 |
+| `TtsProbe.kt` | 本地语音引擎探测：有没有引擎、缺不缺语言包，供面板自检（#128） |
 | `GradingService.kt` | AI 批改与 AI 出题 |
 | `HolidayService.kt` | 节假日日历同步 |
 | `KeepAlive.kt` / `Watchdog.kt` / `RevivalListener.kt` / `ProcessHealth.kt` / `BootReceiver.kt` / `GuardSync.kt` | 保活、开机自启、被系统清理后的复活 |
